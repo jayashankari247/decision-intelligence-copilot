@@ -131,7 +131,7 @@ The ChromaDB vector indexes (reviews + products) are built automatically on firs
 │   ├── schemas.py              # Pydantic output models (all 5 agents)
 │   └── logger.py              # JSON structured logging → logs/
 ├── ui/
-│   └── app.py                 # Streamlit UI (Amazon Seller Central-inspired)
+│   └── app.py                 # Streamlit UI — retail operations dashboard
 ├── tests/
 │   ├── test_routing.py        # 14 routing tests (no API calls)
 │   └── test_schemas.py        # 12 integration tests (real API calls)

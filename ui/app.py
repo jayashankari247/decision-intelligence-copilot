@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ── Styling — Amazon Seller Central-inspired ─────────────────────────────────
+# ── Styling — retail operations dashboard ────────────────────────────────────
 st.markdown("""
 <style>
 /* ════════════════════════════════════════════════════════════════════
@@ -95,7 +95,7 @@ div[data-baseweb="notification"] li {
     font-weight: 600 !important;
 }
 
-/* ── Primary button → Amazon orange gradient ── */
+/* ── Primary button — orange gradient ── */
 .stButton > button[kind="primary"] {
     background: linear-gradient(to bottom, #f5c142 0%, #e59820 100%) !important;
     border: 1px solid #C7812A !important;
@@ -140,7 +140,7 @@ div[data-baseweb="notification"] li {
     margin: 2px;
 }
 
-/* ── Section header — Amazon panel style ── */
+/* ── Section header — panel style ── */
 .section-header {
     background: #F0F2F2;
     border-top: 1px solid #D5D9D9;

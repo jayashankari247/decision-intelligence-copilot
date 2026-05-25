@@ -253,7 +253,7 @@ Routing tests use `@pytest.mark.parametrize` across all query types — single a
 
 ## 8. UI (`ui/app.py`)
 
-Streamlit application with an Amazon Seller Central-inspired design — light sidebar, navy/orange header, card-based agent insight panels.
+Streamlit application with a retail operations dashboard design — light sidebar, navy/orange header, card-based agent insight panels.
 
 **Key UI behaviours:**
 - `@st.cache_resource` loads the orchestrator once; all subsequent queries reuse the cached instance with warm ChromaDB indexes
