@@ -1,0 +1,39 @@
+# ── Secrets — never commit ───────────────────────────────────────────────────
+.env
+*.env
+
+# ── Virtual environment ──────────────────────────────────────────────────────
+venv/
+env/
+.venv/
+ENV/
+
+# ── Python cache ─────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# ── Data directory — all contents excluded ───────────────────────────────────
+# H&M dataset files are third-party with separate licensing and are too large
+# for git (customers.csv 197MB, images 29GB, transactions 500MB+).
+# Generated artifacts (retail.db, inventory_snapshot, chroma_db indexes) are
+# rebuilt locally by running build_sqlite_db.py and generate_inventory_snapshot.py.
+# Download instructions are in README.md.
+data/
+sample_reviews.csv
+
+# ── Runtime logs ─────────────────────────────────────────────────────────────
+logs/*.jsonl
+
+# ── OS / IDE ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

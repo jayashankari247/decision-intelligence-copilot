@@ -1,0 +1,13 @@
+anthropic==0.97.0
+chromadb==1.5.9
+pandas==3.0.2
+plotly==6.7.0
+pydantic==2.13.3
+pydantic-settings==2.14.0
+pytest==9.0.3
+python-dotenv==1.2.2
+sentence-transformers==5.4.1
+streamlit==1.57.0
+torch==2.11.0
+torchvision==0.26.0
+transformers==5.8.0
