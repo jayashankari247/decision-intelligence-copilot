@@ -5,7 +5,7 @@ or view directly on GitHub (Mermaid renders natively in GitHub markdown).
 
 ---
 
-## Current Architecture — v1 Raw Anthropic SDK (Phase 6)
+## Current Architecture — Raw Anthropic SDK
 
 ```mermaid
 flowchart TD
@@ -61,7 +61,7 @@ flowchart TD
 
 ---
 
-## Phase 7 Target — LangGraph
+## LangGraph Target Architecture
 
 ```mermaid
 flowchart TD
@@ -107,9 +107,9 @@ flowchart TD
 
 ---
 
-## What changes in Phase 7
+## What changes in the LangGraph migration
 
-| Concept | v1 Raw SDK | v2 LangGraph |
+| Concept | Current (Raw SDK) | Target (LangGraph) |
 |---|---|---|
 | Routing logic | `if/elif` in `orchestrator.py` | Conditional edges on the graph |
 | Parallel dispatch | `ThreadPoolExecutor` | LangGraph `Send` API (fan-out) |
