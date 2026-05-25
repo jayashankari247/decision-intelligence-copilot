@@ -1,526 +1,352 @@
-# Decision Intelligence Co-Pilot — Architecture & Design Document
-
-**Version:** 0.1 (Learning Project)
-**Last Updated:** 2026-05-03
+# Decision Intelligence Co-Pilot — Architecture & Design
 
 ---
 
 ## 1. Overview
 
-The Decision Intelligence Co-Pilot is a multi-agent, multimodal AI system that helps business users make better decisions across customer experience, inventory, pricing, product, and marketing domains. Users interact through natural language; the system routes questions to specialized agents, synthesizes their outputs, and returns a unified recommendation.
+The Decision Intelligence Co-Pilot is a multi-agent AI system for retail operations. A single natural language question is classified by intent, routed in parallel to one or more specialist agents, and synthesized into a unified streamed recommendation. Five specialist agents cover customer sentiment, pricing, product catalog, inventory, and campaign planning — each backed by purpose-built data retrieval and validated structured output.
 
 ---
 
-## 2. System Goals
-
-- Answer complex cross-domain business questions from a single natural language prompt
-- Analyze multimodal inputs (text, images, behavioral signals)
-- Produce structured, explainable recommendations — not just answers
-- Serve as a learning platform for AI-native system design
-
----
-
-## 3. High-Level Architecture
+## 2. System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        User Interface                           │
-│              (Streamlit / Gradio / CLI)                         │
+│                     Streamlit UI  (ui/app.py)                   │
 └────────────────────────┬────────────────────────────────────────┘
-                         │  Natural language query + optional
-                         │  multimodal inputs (images, files)
+                         │  natural language query
                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Orchestrator Agent                          │
-│                                                                 │
-│  • Parses and classifies the intent of the user query           │
-│  • Decomposes complex queries into sub-tasks                    │
-│  • Routes sub-tasks to one or more specialist agents            │
-│  • Collects agent responses                                     │
-│  • Synthesizes a unified recommendation                         │
-└──┬──────────┬──────────┬──────────┬──────────┬─────────────────┘
-   │          │          │          │          │
-   ▼          ▼          ▼          ▼          ▼
-┌──────┐  ┌──────┐  ┌──────┐  ┌──────┐  ┌──────────┐
-│  CV  │  │  IS  │  │  PP  │  │  PD  │  │   CI     │
-│Agent │  │Agent │  │Agent │  │Agent │  │  Agent   │
-└──┬───┘  └──┬───┘  └──┬───┘  └──┬───┘  └────┬─────┘
-   │          │          │          │           │
-   └──────────┴──────────┴──────────┴───────────┘
-                         │
-                         ▼
-              ┌──────────────────┐
-              │  Shared Context  │
-              │  & Memory Store  │
-              └──────────────────┘
+│                    Orchestrator  (orchestrator/)                 │
+│                                                                  │
+│  1. Intent Classifier  — Claude API call → routing JSON          │
+│     { agents: [...], mode: "search|summary", article_id }       │
+│                                                                  │
+│  2. Parallel Dispatcher — ThreadPoolExecutor fan-out             │
+│     one future per agent, results collected as completed         │
+│                                                                  │
+│  3. Synthesizer — client.messages.stream() with prompt cache    │
+│     streams token-by-token to the UI                            │
+└───┬──────────┬──────────┬──────────┬──────────┬────────────────┘
+    │          │          │          │          │
+    ▼          ▼          ▼          ▼          ▼
+┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐ ┌──────────┐
+│  CV   │ │  PP   │ │  PD   │ │  IS   │ │    CI    │
+│ Agent │ │ Agent │ │ Agent │ │ Agent │ │  Agent   │
+└───┬───┘ └───┬───┘ └───┬───┘ └───┬───┘ └────┬─────┘
+    │          │          │          │          │
+    ▼          ▼          ▼          ▼          ▼
+┌──────────┐ ┌───────────────────┐ ┌──────────────────────────┐
+│ ChromaDB │ │      SQLite       │ │  inventory_snapshot.csv  │
+│ (reviews │ │ price_points      │ │  (warehouse stock levels)│
+│  + prods)│ │ demand_daily      │ └──────────────────────────┘
+└──────────┘ │ demand_summary    │
+             └───────────────────┘
 ```
 
-**Agent Key:** CV = Customer Voice, IS = Inventory & Supply, PP = Pricing & Profit, PD = Product Discovery, CI = Campaign Intelligence
+**Agent key:** CV = Customer Voice, PP = Pricing & Profit, PD = Product Discovery, IS = Inventory & Supply, CI = Campaign Intelligence
 
 ---
 
-## 4. Agent Specifications
+## 3. Orchestration Layer
 
-### 4.1 Orchestrator Agent
+### 3.1 Intent Classifier (`orchestrator/intent_classifier.py`)
 
-| Property | Detail |
-|---|---|
-| Role | Central coordinator and synthesizer |
-| Input | Natural language query + user context + optional files/images |
-| Output | Structured final recommendation with citations from specialist agents |
-| Model | Claude Sonnet 4.6 (claude-sonnet-4-6) |
+A single Claude API call converts the user's natural language query into a structured routing decision:
 
-**Responsibilities:**
-- Intent classification: identify which domain(s) are relevant
-- Query decomposition: break compound questions into sub-tasks
-- Agent dispatch: call one or more specialist agents (sequentially or in parallel)
-- Response synthesis: merge specialist outputs into a coherent recommendation
-- Conflict resolution: surface disagreements between agents rather than silently hiding them
-
-**System Prompt Design Principles:**
-- Define a clear decision-making persona (business advisor, not just a summarizer)
-- Instruct it to always cite which agent produced which insight
-- Require it to flag uncertainty and missing data explicitly
-
----
-
-### 4.2 Customer Voice Agent
-
-| Property | Detail |
-|---|---|
-| Role | Interpret customer signals and surface unmet needs |
-| Input | Text reviews, support tickets, survey responses, behavioral logs, product images |
-| Output | Sentiment scores, theme clusters, top unmet needs, urgency flags |
-| Model | Claude Sonnet 4.6 (vision-enabled for image inputs) |
-| Key Techniques | Sentiment analysis, topic modeling, multimodal signal fusion |
-
-**Data Sources:**
-- Women's Clothing E-Commerce Reviews (Kaggle) — general clothing sentiment, thematically aligned with H&M product categories
-- H&M article mapping (`article_review_map.csv`) — category-based mapping from review Clothing IDs to H&M article IDs, enabling product-level demo queries
-- Note: H&M's open dataset contains no customer review text; the review dataset is a category-level proxy, not H&M-specific data
-
-**Output Schema (JSON):**
 ```json
 {
-  "overall_sentiment": "negative | neutral | positive",
-  "sentiment_score": 0.0,
-  "themes": [
-    { "theme": "string", "frequency": 0, "sentiment": "string", "example_quotes": [] }
-  ],
-  "unmet_needs": ["string"],
-  "urgency_flags": ["string"],
-  "data_sources_used": ["string"]
+  "agents": ["pricing_profit", "customer_voice"],
+  "mode": "search",
+  "article_id": "0108775015",
+  "reasoning": "Query asks for price recommendation and customer sentiment on a specific article."
 }
 ```
 
+The classifier returns the minimal agent set required — single-agent queries invoke one agent, compound queries fan out to multiple. Prompt caching is applied to the classifier system prompt.
+
+### 3.2 Parallel Dispatcher (`orchestrator/orchestrator.py`)
+
+For multi-agent queries, agents run concurrently via `ThreadPoolExecutor`. Each agent executes in its own thread; results are collected as futures complete. Per-agent wall-clock timing is recorded for observability.
+
+### 3.3 Streaming Synthesizer
+
+For multi-agent results, synthesis uses `client.messages.stream()` with the system prompt under `cache_control: {"type": "ephemeral"}`. Tokens are yielded to the Streamlit UI via `st.write_stream()` as they arrive, eliminating the wait for full completion before the user sees output.
+
 ---
 
-### 4.3 Inventory & Supply Agent
+## 4. Specialist Agents
+
+Each agent follows the same internal pattern:
+1. Retrieve relevant data (vector search or SQL query)
+2. Build a structured context block from retrieved data
+3. Call the Claude API (with prompt caching on the system prompt)
+4. Parse the JSON response
+5. Validate and normalise output via `shared/schemas.py`
+
+### 4.1 Customer Voice Agent (`agents/customer_voice/`)
 
 | Property | Detail |
 |---|---|
-| Role | Model demand patterns and surface supply risks |
-| Input | Historical sales data, inventory levels, lead times, supplier data |
-| Output | Demand forecast, stockout risk, reorder recommendations |
-| Model | Claude Sonnet 4.6 + external forecasting library (Prophet / statsforecast) |
-| Key Techniques | Time-series forecasting, anomaly detection, constraint optimization |
+| Data | 23,000 women's clothing reviews indexed in ChromaDB |
+| Embedding model | `all-MiniLM-L6-v2` (sentence-transformers) |
+| Modes | `search` — specific article sentiment; `summary` — portfolio-wide themes |
+| Output | Sentiment score, supporting evidence, themes, unmet needs, recommendation |
 
-**Architecture Note:** Claude handles interpretation and recommendation; a Python forecasting library (Prophet or statsforecast) handles the numerical computation. Claude does not do time-series math directly.
+**Search mode** performs semantic similarity retrieval against the review index and returns direct-answer JSON. **Summary mode** samples across the full index and returns theme clusters, top positives/negatives, and an executive summary.
 
-**Output Schema (JSON):**
 ```json
 {
-  "forecast_horizon_days": 30,
-  "demand_forecast": [{ "date": "YYYY-MM-DD", "predicted_units": 0 }],
-  "stockout_risk": [{ "sku": "string", "risk_level": "low|medium|high", "days_until_stockout": 0 }],
-  "reorder_recommendations": [{ "sku": "string", "reorder_quantity": 0, "reorder_by_date": "YYYY-MM-DD" }]
+  "direct_answer": "string",
+  "sentiment": "positive | neutral | negative",
+  "relevant_review_count": 0,
+  "supporting_evidence": ["quote 1", "quote 2"],
+  "recommendation": "string"
 }
 ```
 
----
-
-### 4.4 Pricing & Profit Agent
+### 4.2 Pricing & Profit Agent (`agents/pricing_profit/`)
 
 | Property | Detail |
 |---|---|
-| Role | Analyze price elasticity and recommend margin-optimal pricing |
-| Input | H&M transaction history (article_id + normalized price per transaction) |
-| Output | Elasticity estimates, scenario comparisons, recommended price points |
-| Model | Claude Sonnet 4.6 |
-| Key Techniques | Price elasticity modeling, scenario simulation, demand-at-price aggregation |
+| Data | SQLite `price_points` table (article_id, price, txn_count, total_rev) |
+| Fallback | Transactions CSV if SQLite unavailable |
+| Output | Price elasticity, current best price, recommended price, revenue scenarios |
 
-**Data Source:** H&M `transactions_train.csv` — same unified dataset as Inventory and Campaign agents. Prices are H&M normalized values (0.0–1.0 scale). Pre-aggregated on first call and cached in memory for the session.
+The agent aggregates historical price-volume data per article, constructs price-demand curves, and prompts Claude to reason over elasticity and recommend an optimal price point with scenario comparisons.
 
-**Output Schema (JSON):**
-```json
-{
-  "current_price": 0.0,
-  "recommended_price": 0.0,
-  "estimated_margin_impact_pct": 0.0,
-  "elasticity_estimate": 0.0,
-  "scenarios": [
-    { "label": "string", "price": 0.0, "projected_revenue": 0.0, "projected_margin": 0.0 }
-  ],
-  "confidence": "low|medium|high",
-  "assumptions": ["string"]
-}
-```
-
----
-
-### 4.5 Product Discovery Agent
-
-| Property | Detail |
-|---|---|
-| Role | Identify emerging trends, product gaps, and adjacent opportunities |
-| Input | Product catalog (text + images), market data, customer themes from CV Agent |
-| Output | Trend signals, similar products, opportunity scores, visual cluster map |
-| Model | Claude Sonnet 4.6 (vision) + embedding model |
-| Key Techniques | Multimodal embeddings, semantic similarity search, trend detection |
-
-**Architecture Note:**
-- Use Claude vision to extract structured attributes from product images
-- Use a text+image embedding model (e.g., OpenAI CLIP or `sentence-transformers`) to build a joint embedding space
-- Store embeddings in a vector database (e.g., ChromaDB for local dev, Pinecone/Weaviate for scale)
-
-**Output Schema (JSON):**
-```json
-{
-  "trending_categories": [{ "category": "string", "trend_score": 0.0, "evidence": [] }],
-  "similar_products": [{ "product_id": "string", "similarity_score": 0.0 }],
-  "opportunity_areas": [{ "area": "string", "opportunity_score": 0.0, "rationale": "string" }]
-}
-```
-
----
-
-### 4.6 Campaign Intelligence Agent
-
-| Property | Detail |
-|---|---|
-| Role | Identify when and where to run promotions or price discounts based on demand signals |
-| Input | Transaction history (demand trend), inventory levels, product metadata |
-| Output | Promotion recommendation, suggested discount, campaign timing, risk of inaction |
-| Model | Claude Sonnet 4.6 |
-| Key Techniques | Demand trend analysis, inventory pressure scoring, seasonal pattern detection |
-
-**Architecture Note:** Demand trends are computed from transaction history (recent vs earlier period). Claude reasons over the combined demand + inventory signal to recommend campaign type and timing. Pairs naturally with the Pricing Agent — inventory routes both when a query mentions both demand slowdown and optimal pricing.
-
-**Output Schema (JSON):**
 ```json
 {
   "article_id": "string",
-  "demand_trend": "DECLINING | STABLE | GROWING",
-  "demand_change_pct": 0.0,
-  "inventory_status": "HIGH | NORMAL | LOW",
+  "price_elasticity": "elastic | inelastic | unit_elastic",
+  "current_best_price": 0.0,
+  "recommended_price": 0.0,
+  "recommendation_rationale": "string",
+  "revenue_scenarios": [
+    { "label": "string", "price": 0.0, "projected_units": 0, "projected_revenue": 0.0 }
+  ],
+  "confidence": "low | medium | high"
+}
+```
+
+### 4.3 Product Discovery Agent (`agents/product_discovery/`)
+
+| Property | Detail |
+|---|---|
+| Data | 10,000 H&M articles indexed in ChromaDB |
+| Embedding model | `all-MiniLM-L6-v2` (sentence-transformers) |
+| Modes | `search` — semantic catalog search; `summary` — catalog composition analysis |
+| Output | Matching products, colour/style variety, coverage assessment, catalog gaps |
+
+Product metadata (name, type, colour, department, description) is concatenated into a text document per article and embedded at index build time. Queries use semantic similarity to surface the closest matches.
+
+### 4.4 Inventory & Supply Agent (`agents/inventory_supply/`)
+
+| Property | Detail |
+|---|---|
+| Data | SQLite `demand_summary` (daily demand rates per article) + `inventory_snapshot.csv` (warehouse stock) |
+| Supporting module | `forecaster.py` — computes days-until-stockout and recommended order quantities |
+| Modes | Article-specific replenishment; portfolio risk summary |
+| Output | Replenishment status, days until stockout, order quantity, order date, risk factors |
+
+The forecaster divides current stock by demand rate to project stockout dates, then Claude reasons over lead times and risk factors to produce a replenishment recommendation.
+
+```json
+{
+  "replenishment_status": "CRITICAL | AT_RISK | HEALTHY",
+  "days_until_stockout": 0,
+  "recommended_order_quantity": 0,
+  "recommended_order_date": "YYYY-MM-DD",
+  "rationale": "string",
+  "risk_factors": ["string"],
+  "confidence": "low | medium | high"
+}
+```
+
+### 4.5 Campaign Intelligence Agent (`agents/campaign_intelligence/`)
+
+| Property | Detail |
+|---|---|
+| Data | SQLite `demand_daily` (transaction counts by date) + `inventory_snapshot.csv` |
+| Supporting module | `trend_analyzer.py` — computes demand trend and change percentage |
+| Modes | Article-specific promotion decision; portfolio promotion candidates |
+| Output | Promotion recommendation, discount percentage, campaign type and timing, risk of inaction |
+
+The trend analyzer compares recent vs earlier transaction periods to classify demand direction. Claude combines demand trend with inventory pressure to recommend whether and how to promote.
+
+```json
+{
   "promotion_recommendation": "PROMOTE_NOW | MONITOR | HOLD",
   "suggested_discount_pct": 0,
   "campaign_type": "PRICE_DISCOUNT | BUNDLE | SEASONAL_CLEARANCE | LOYALTY_OFFER | NONE",
+  "demand_trend": "DECLINING | STABLE | GROWING",
+  "demand_change_pct": 0.0,
   "campaign_timing": "string",
   "rationale": "string",
-  "risk_of_inaction": "string",
-  "confidence": "HIGH | MEDIUM | LOW"
+  "risk_of_inaction": "string"
 }
 ```
 
 ---
 
-## 5. Inter-Agent Communication
+## 5. Data Layer
 
-### Message Format
+| Store | Contents | Used by |
+|---|---|---|
+| ChromaDB — reviews collection | 23K review embeddings + metadata | Customer Voice |
+| ChromaDB — products collection | 10K article embeddings + metadata | Product Discovery |
+| SQLite `price_points` | Per-article price/volume aggregations | Pricing & Profit |
+| SQLite `demand_daily` | Daily transaction counts per article | Campaign Intelligence |
+| SQLite `demand_summary` | Daily demand rate per article | Inventory & Supply |
+| `inventory_snapshot.csv` | Warehouse-level stock quantities | Inventory & Supply, Campaign Intelligence |
 
-All agents communicate via a shared message schema:
+**ChromaDB** uses `PersistentClient` — indexes are built once on first run and reloaded from disk on every subsequent start. **SQLite** is pre-aggregated from the raw transactions CSV by `build_sqlite_db.py` (run once at setup). Both strategies eliminate per-query raw file scanning.
 
-```python
-@dataclass
-class AgentMessage:
-    source_agent: str          # e.g., "orchestrator", "customer_voice"
-    target_agent: str
-    task_id: str               # UUID, ties sub-tasks to a parent query
-    query: str
-    context: dict              # shared context window
-    inputs: dict               # structured inputs for the target agent
-    outputs: dict | None       # populated by the target agent on response
-    status: str                # "pending" | "running" | "complete" | "failed"
-    timestamp: str
+---
+
+## 6. Shared Infrastructure
+
+### 6.1 Output Validation (`shared/schemas.py`)
+
+Pydantic v2 models for every agent output type. A shared `_Base` class applies a `model_validator(mode="before")` that normalises string enum fields — Claude occasionally varies capitalisation on values like `"High"` vs `"HIGH"` vs `"high"`; the validator enforces consistent casing before field validation runs.
+
+Nine schema classes cover all agent modes:
+`CustomerVoiceSearchOutput`, `CustomerVoiceSummaryOutput`, `PricingOutput`, `ProductDiscoverySearchOutput`, `ProductDiscoverySummaryOutput`, `InventoryArticleOutput`, `InventorySummaryOutput`, `CampaignArticleOutput`, `CampaignSummaryOutput`
+
+### 6.2 Structured Logging (`shared/logger.py`)
+
+`AgentLogger` appends a JSON entry to `logs/agent_calls.jsonl` on every orchestrator run:
+
+```json
+{
+  "timestamp": "ISO8601",
+  "query": "string",
+  "agents_called": ["string"],
+  "agent_timings": { "agent_name": 8.3 },
+  "total_latency_sec": 12.1,
+  "success": true
+}
 ```
 
-### Communication Patterns
+The last 10 log entries are surfaced in the Streamlit sidebar for real-time observability without leaving the UI.
 
-| Pattern | When to use |
+---
+
+## 7. Test Suite
+
+26 tests across two files, separated by cost:
+
+| File | Tests | Requires API | Scope |
+|---|---|---|---|
+| `tests/test_routing.py` | 14 | No | Intent classification accuracy across all 11 known query patterns |
+| `tests/test_schemas.py` | 12 | Yes | Per-agent output schema validation + end-to-end orchestrator runs |
+
+Routing tests use `@pytest.mark.parametrize` across all query types — single agent, multi-agent, summary, article-specific, and unknown query fallback. Integration tests are marked `@pytest.mark.integration` and can be excluded to keep CI fast.
+
+---
+
+## 8. UI (`ui/app.py`)
+
+Streamlit application with an Amazon Seller Central-inspired design — light sidebar, navy/orange header, card-based agent insight panels.
+
+**Key UI behaviours:**
+- `@st.cache_resource` loads the orchestrator once; all subsequent queries reuse the cached instance with warm ChromaDB indexes
+- Multi-agent queries stream the synthesis live via `st.write_stream()`; single-agent results render immediately
+- Each agent's structured output is rendered into its own insight card with metrics, charts (Plotly), and evidence lists
+- Per-agent timing is displayed alongside the agent tags on each result
+- Last 10 query logs visible in the sidebar expander without leaving the app
+
+---
+
+## 9. Key Design Decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Parallel dispatch | `ThreadPoolExecutor` | Multi-agent queries run all agents simultaneously; a 3-agent query takes the time of the slowest agent, not the sum |
+| Streaming synthesis | `client.messages.stream()` | Users see the recommendation building in real time rather than waiting for full completion |
+| Prompt caching | `cache_control: ephemeral` on all system prompts | Repeated queries reuse cached prompt prefixes, reducing latency and API cost |
+| SQLite pre-aggregation | One-time build via `build_sqlite_db.py` | Price and demand queries hit indexed tables in milliseconds rather than scanning 500MB+ CSVs |
+| Pydantic validation | Per-agent schema on every response | Catches malformed outputs and normalises enum casing before the synthesizer or UI consume the data |
+| Orchestration style | Centralised orchestrator, no framework | Explicit routing and state passing; the LangGraph migration (next) will replace this layer without touching any agent code |
+| Archive pattern | `archive/v1_sdk/` preserves the pre-migration orchestrator | Direct comparison between raw-SDK and LangGraph designs; agent code is identical in both |
+
+---
+
+## 10. Technology Stack
+
+| Layer | Technology |
 |---|---|
-| Sequential | Agent B needs Agent A's output as input (e.g., CI Agent paired with Pricing Agent for discount optimization) |
-| Parallel | Independent sub-tasks (e.g., CV + IS + PP all queried simultaneously for a complex question) |
-| Broadcast | Orchestrator needs all agents to respond and then synthesizes |
+| LLM | Anthropic Claude (`claude-sonnet-4-6`) |
+| UI | Streamlit |
+| Vector search | ChromaDB + sentence-transformers (`all-MiniLM-L6-v2`) |
+| Structured data | SQLite via Python `sqlite3` |
+| Output validation | Pydantic v2 |
+| Structured logging | Append-only JSONL (`shared/logger.py`) |
+| Testing | pytest with `integration` marker for API-call tests |
+| Orchestration (next) | LangGraph |
 
 ---
 
-## 6. Shared Context & Memory
+## 11. Repository Structure
 
 ```
-┌─────────────────────────────────────────────┐
-│             Shared Context Store            │
-│                                             │
-│  session_context:  { query, user, history } │
-│  agent_outputs:    { agent_id → output }    │
-│  working_memory:   { key facts this run }   │
-└─────────────────────────────────────────────┘
-```
-
-- **Session context:** In-memory Python dict for the duration of one user query
-- **Working memory:** Key facts extracted by agents that other agents may need
-- **Persistent memory (future):** Store past decisions, user preferences, and learned patterns across sessions (SQLite or a simple JSON log for the learning phase)
-
----
-
-## 7. Multimodal Input Handling
-
-| Input Type | Accepted Formats | Handling |
-|---|---|---|
-| Text | Plain text, CSV, JSON | Direct to agent context |
-| Images | PNG, JPG, WEBP | Base64-encoded, passed to Claude vision |
-| Behavioral data | CSV / JSON event logs | Parsed into structured summary before agent call |
-| Documents | PDF (future) | Extract text via pypdf, then treat as text |
-
-All multimodal inputs are normalized into a structured `inputs` dict before being passed to an agent.
-
----
-
-## 8. Technology Stack
-
-### Core
-
-| Component | Choice | Rationale |
-|---|---|---|
-| LLM | Claude Sonnet 4.6 (claude-sonnet-4-6) | Vision support, tool use, long context |
-| Language | Python 3.11+ | Ecosystem for ML/data, typing support |
-| API Client | `anthropic` Python SDK | Native Claude support, streaming, tool use |
-
-### Data & ML
-
-| Component | Choice | Notes |
-|---|---|---|
-| Forecasting | Prophet or statsforecast | Time-series for Inventory Agent |
-| Embeddings | sentence-transformers / CLIP | Multimodal embeddings for Product Discovery |
-| Vector DB | ChromaDB (dev) → Pinecone (scale) | Similarity search |
-| Data manipulation | pandas | Standard tabular data |
-
-### Infrastructure (Learning Phase)
-
-| Component | Choice | Notes |
-|---|---|---|
-| UI | Streamlit | Fast to build, good for data apps |
-| Config management | python-dotenv | API keys, environment vars |
-| Logging | Python `logging` + JSON formatter | Structured logs for agent observability |
-| Testing | pytest | One test file per agent |
-| Storage | Local filesystem + SQLite | No cloud dependency for learning phase |
-
----
-
-## 9. Project Folder Structure
-
-```
-Decision Intelligence Co-Pilot/
-│
-├── architecture.md                  # This document
-│
-├── orchestrator/
-│   ├── orchestrator_agent.py        # Main orchestrator logic
-│   ├── intent_classifier.py         # Route query to correct agents
-│   └── synthesizer.py               # Merge agent outputs
-│
 ├── agents/
-│   ├── base_agent.py                # Abstract base class all agents inherit
-│   ├── customer_voice/
+│   ├── customer_voice/         # Sentiment search + portfolio summary
+│   │   ├── agent.py
+│   │   ├── embeddings.py       # ChromaDB index build + query
+│   │   ├── prompts.py
+│   │   └── tests/
+│   ├── pricing_profit/         # Price elasticity + revenue scenarios
 │   │   ├── agent.py
 │   │   ├── prompts.py
 │   │   └── tests/
-│   ├── inventory_supply/
-│   │   ├── agent.py
-│   │   ├── forecaster.py
-│   │   ├── prompts.py
-│   │   └── tests/
-│   ├── pricing_profit/
-│   │   ├── agent.py
-│   │   ├── prompts.py
-│   │   └── tests/
-│   ├── product_discovery/
+│   ├── product_discovery/      # Catalog search + gap analysis
 │   │   ├── agent.py
 │   │   ├── embeddings.py
 │   │   ├── prompts.py
 │   │   └── tests/
-│   └── campaign_intelligence/
+│   ├── inventory_supply/       # Stockout forecasting + replenishment
+│   │   ├── agent.py
+│   │   ├── forecaster.py       # Days-to-stockout + order quantity logic
+│   │   ├── prompts.py
+│   │   └── tests/
+│   └── campaign_intelligence/  # Promotion + discount recommendations
 │       ├── agent.py
-│       ├── trend_analyzer.py
+│       ├── trend_analyzer.py   # Demand trend computation
 │       ├── prompts.py
 │       └── tests/
-│
+├── orchestrator/
+│   ├── orchestrator.py         # Parallel dispatch + streaming synthesis
+│   └── intent_classifier.py   # Claude API → routing JSON
 ├── shared/
-│   ├── message_schema.py            # AgentMessage dataclass
-│   ├── context_store.py             # Session context management
-│   └── multimodal_handler.py        # Normalize images/docs/text inputs
-│
-├── data/
-│   ├── synthetic/                   # Sample datasets for development
-│   └── schemas/                     # Expected input data formats
-│
+│   ├── schemas.py              # Pydantic output models (all 5 agents)
+│   └── logger.py              # JSON structured logging → logs/
 ├── ui/
-│   └── app.py                       # Streamlit interface
-│
-├── notebooks/
-│   └── exploration/                 # Jupyter notebooks for experimentation
-│
-├── .env.example                     # Template for API keys
-└── requirements.txt
+│   └── app.py                 # Streamlit UI
+├── tests/
+│   ├── conftest.py            # Session fixtures + pytest markers
+│   ├── test_routing.py        # 14 routing tests (no API calls)
+│   └── test_schemas.py        # 12 integration tests (real API calls)
+├── archive/
+│   └── v1_sdk/                # Pre-LangGraph orchestrator (reference)
+│       ├── orchestrator.py
+│       ├── intent_classifier.py
+│       └── README.md
+├── build_sqlite_db.py          # One-time SQLite pre-aggregation
+├── generate_inventory_snapshot.py
+├── architecture_diagram.md    # Mermaid diagrams: current + LangGraph target
+├── requirements.txt
+├── .env.example
+└── .gitignore
 ```
 
 ---
 
-## 10. Key Design Decisions & Tradeoffs
+## 12. Roadmap
 
-| Decision | Choice | Tradeoff |
+| Milestone | Description | Status |
 |---|---|---|
-| Agent communication | Shared in-memory context dict | Simple to start; won't scale to distributed agents — acceptable for learning phase |
-| LLM for all agents | Single Claude model | Consistent interface; some agents (forecasting) need external compute layers |
-| Orchestration style | Centralized orchestrator | Easier to reason about; limits emergent multi-agent collaboration |
-| Output format | Structured JSON per agent | Enables downstream synthesis; requires careful prompt engineering to enforce |
-| Frameworks (current) | Raw Anthropic SDK, no LangChain/AutoGen | Forces understanding of fundamentals; more code, more learning |
-| Frameworks (future) | LangGraph for orchestration, LangChain for tool/chain abstractions | Reduces boilerplate once fundamentals are solid; introduces after Phase 6 |
-
----
-
-## 11. Observability & Evaluation
-
-### Per-Agent Logging (every call)
-```json
-{
-  "timestamp": "ISO8601",
-  "agent": "customer_voice",
-  "task_id": "uuid",
-  "input_tokens": 0,
-  "output_tokens": 0,
-  "latency_ms": 0,
-  "status": "complete | failed",
-  "input_summary": "...",
-  "output_summary": "..."
-}
-```
-
-### Evaluation Strategy
-- **Golden test set per agent:** 5–10 known input/output pairs, validated by hand
-- **Orchestrator routing accuracy:** Does it route to the right agent(s) for known query types?
-- **Output schema validation:** Use `pydantic` to validate every agent's JSON output
-- **End-to-end integration test:** One full query through all 5 agents, assert non-empty synthesis
-
----
-
-## 12. Build Sequence (Aligned to Learning Plan)
-
-| Phase | What to Build | Milestone |
-|---|---|---|
-| 1 | Foundations — Claude API, agent loop, tool use | Single agent responds correctly to one query |
-| 2 | Customer Voice Agent end-to-end | Structured JSON output from real review data |
-| 3 | Orchestrator + 2 agents (CV + Pricing) | Query routed and synthesized correctly |
-| 4 | Multimodal — Product Discovery Agent | Image + text input handled, embeddings working |
-| 5 | All 5 agents + full orchestration | Full pipeline from NL query to unified recommendation |
-| 6 | UI + observability + evals | Streamlit UI, logging in place, pytest suite passing |
-
----
-
-## 13. Future Considerations (Post-Learning)
-
-- **Streaming responses:** Stream agent outputs to UI in real-time rather than waiting for full completion
-- **Async agent execution:** Run independent agents in parallel using `asyncio`
-- **Persistent memory:** Store and retrieve past decisions and user preferences across sessions
-- **Fine-tuning:** Consider fine-tuning on domain-specific data once baseline prompts are stable
-- **Human-in-the-loop:** Add approval steps before high-stakes recommendations (e.g., pricing changes)
-- **Agent self-evaluation:** Have agents rate their own confidence and flag low-confidence outputs for review
-
----
-
-## 15. Advanced Reasoning & Adaptive Learning (Phase 8+)
-
-These capabilities are intentionally deferred until the full pipeline is stable. Introducing them early adds complexity before the foundation is solid.
-
-### 15.1 Deep Reasoning Mechanisms
-
-**Chain of Thought (CoT)** — instruct Claude to reason step by step before producing its final JSON output. The reasoning trace is visible, making recommendations explainable.
-
-```
-Implementation: Add "Think step by step before answering. Show your reasoning,
-then output the final JSON." to each agent's system prompt.
-```
-
-**Tree of Thought (ToT)** — Claude explores multiple reasoning paths in parallel before selecting the best one. Useful for complex decisions like pricing scenarios or inventory tradeoffs where there are competing options to evaluate.
-
-```
-Implementation: Prompt Claude to generate 3 candidate approaches,
-evaluate each, then select and output the best one.
-```
-
-**When to introduce:**
-- CoT: Phase 6 (hardening) — low effort, high explainability gain
-- ToT: Phase 8 — after LangGraph migration, since ToT benefits from graph-based branching
-
-### 15.2 Adaptive Learning — Agents That Improve Over Time
-
-As users accept, reject, or refine agent recommendations, the system learns from that feedback.
-
-**Approach 1 — Feedback logging (Phase 6+)**
-Log every recommendation + user decision. Build a feedback store that agents can query: "Here are past recommendations the user accepted/rejected — use these to calibrate your output."
-
-**Approach 2 — Dynamic few-shot examples (Phase 7+)**
-Automatically build a library of good examples from accepted recommendations. Inject the most relevant ones into the prompt as few-shot examples. The agent's quality improves as the example library grows.
-
-**Approach 3 — Reinforcement Learning from Human Feedback (RLHF, Phase 8+)**
-Full fine-tuning loop where accepted/rejected recommendations are used to update model weights. This requires significant data volume and infrastructure — a longer-term goal.
-
-| Mechanism | Complexity | When | What it gives you |
-|---|---|---|---|
-| Chain of Thought | Low | Phase 6 | Explainable reasoning |
-| Tree of Thought | Medium | Phase 8 | Better decisions on complex tradeoffs |
-| Feedback logging | Low | Phase 6 | Foundation for all learning |
-| Dynamic few-shot | Medium | Phase 7 | Agents improve with use |
-| RLHF fine-tuning | High | Phase 8+ | Deep model-level adaptation |
-
-**Reading (save for later):**
-- [Anthropic — Chain of Thought Prompting](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/chain-of-thought)
-- [Tree of Thoughts paper](https://arxiv.org/abs/2305.10601)
-- [Few-shot prompting guide](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/use-examples)
-
----
-
-## 14. Framework Evolution Path (LangChain / LangGraph)
-
-**When to introduce:** After Phase 6, once the full raw-SDK system is working end-to-end.
-
-**Why wait:** LangChain and LangGraph are abstractions over the exact patterns you will have built by hand. Introducing them after you've felt the manual friction means every abstraction will make sense and you'll know when to use vs. bypass it.
-
-### What LangChain/LangGraph replaces in this system
-
-| Current (Raw SDK) | Future (LangChain/LangGraph) |
-|---|---|
-| Hand-written agent loop | `LangGraph` — stateful graph-based agent execution |
-| Custom `AgentMessage` schema + routing | `LangGraph` nodes and edges |
-| Manual tool call handling | `LangChain` tool decorators (`@tool`) |
-| Custom context store (dict) | `LangGraph` state management |
-| Custom prompt templates in `prompts.py` | `LangChain` `ChatPromptTemplate` |
-| Manual retry/error handling | LangChain built-in retry wrappers |
-| Custom logging | LangSmith — LangChain's observability platform |
-
-### Migration approach (Phase 7)
-1. Keep all 5 agent business logic unchanged
-2. Replace the orchestrator's routing and state management with a LangGraph graph
-3. Replace prompt template strings with `ChatPromptTemplate`
-4. Add LangSmith for tracing and observability
-5. Compare: same results, less orchestration code
-
-### Packages to add at that point
-```
-pip install langchain langchain-anthropic langgraph langsmith
-```
-
-### Reading (save for Phase 7)
-- [LangGraph — Introduction](https://langchain-ai.github.io/langgraph/)
-- [LangGraph vs raw agents](https://langchain-ai.github.io/langgraph/concepts/why-langgraph/)
-- [LangSmith — Tracing](https://docs.smith.langchain.com/)
+| 5-agent system | All agents integrated, orchestrator routing, Streamlit UI | ✅ Complete |
+| Hardening | Pydantic validation, prompt caching, parallel dispatch, streaming, SQLite pre-aggregation, 26-test suite | ✅ Complete |
+| LangGraph migration | Replace `ThreadPoolExecutor` orchestration with a `StateGraph`; add LangSmith observability | 🔜 Next |
+| AWS EC2 deployment | Always-on hosted instance; orchestrator warm in `@st.cache_resource` | Planned |

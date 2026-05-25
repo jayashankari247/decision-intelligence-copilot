@@ -1,6 +1,6 @@
 # Decision Intelligence Co-Pilot
 
-A multi-agent AI system that answers complex cross-domain retail business questions from a single natural language prompt. Built as a learning platform for AI-native system design using the Anthropic Claude API.
+A multi-agent AI system that answers complex cross-domain retail business questions from a single natural language prompt, using the Anthropic Claude API.
 
 ---
 
@@ -52,8 +52,8 @@ See [architecture_diagram.md](architecture_diagram.md) for Mermaid diagrams of t
 ### 2. Clone and create virtual environment
 
 ```bash
-git clone https://github.com/jayashankari247/supplychaincopilot.git
-cd supplychaincopilot
+git clone https://github.com/jayashankari247/decision-intelligence-copilot.git
+cd decision-intelligence-copilot
 python -m venv venv
 
 # Windows
@@ -134,9 +134,8 @@ The ChromaDB vector indexes (reviews + products) are built automatically on firs
 ├── archive/v1_sdk/            # Archived v1 orchestrator before LangGraph migration
 ├── build_sqlite_db.py         # One-time SQLite pre-aggregation script
 ├── generate_inventory_snapshot.py
-├── architecture_diagram.md    # Mermaid diagrams: current + Phase 7 LangGraph
+├── architecture_diagram.md    # Mermaid diagrams: current + LangGraph target
 ├── architecture.md            # Full system design document
-├── learning-plan.md           # Phase-by-phase build log
 └── requirements.txt
 ```
 
@@ -154,21 +153,6 @@ pytest tests/test_schemas.py -v -m integration
 # All tests
 pytest -v
 ```
-
----
-
-## Phases completed
-
-| Phase | Description | Status |
-|---|---|---|
-| 1 | Project setup + Claude API hello world | ✅ Complete |
-| 2 | Customer Voice agent (ChromaDB + sentiment) | ✅ Complete |
-| 3 | Pricing & Profit agent (SQLite + elasticity) | ✅ Complete |
-| 4 | Product Discovery agent (ChromaDB + catalog) | ✅ Complete |
-| 4b | Inventory & Supply + Campaign Intelligence agents | ✅ Complete |
-| 5 | Streamlit UI + orchestrator + all 5 agents integrated | ✅ Complete |
-| 6 | Pydantic validation, structured logging, parallel dispatch, prompt caching, streaming, SQLite pre-aggregation, golden test suite | ✅ Complete |
-| 7 | LangGraph migration (orchestration layer refactor) | 🔜 Next |
 
 ---
 
