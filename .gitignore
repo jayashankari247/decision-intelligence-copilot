@@ -31,6 +31,10 @@ sample_reviews.csv
 # ── Runtime logs ─────────────────────────────────────────────────────────────
 logs/*.jsonl
 
+# ── Local-only project files (not for public repo) ───────────────────────────
+learning-plan.md
+linkedin_thumbnail.html
+
 # ── OS / IDE ─────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
