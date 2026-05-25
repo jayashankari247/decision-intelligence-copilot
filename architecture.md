@@ -4,7 +4,13 @@
 
 ## 1. Overview
 
-The Decision Intelligence Co-Pilot is a multi-agent AI system for retail operations. A single natural language question is classified by intent, routed in parallel to one or more specialist agents, and synthesized into a unified streamed recommendation. Five specialist agents cover customer sentiment, pricing, product catalog, inventory, and campaign planning — each backed by purpose-built data retrieval and validated structured output.
+Retail operations surface insight across at least five distinct domains — customer sentiment, pricing dynamics, product catalog, inventory position, and demand trends. In practice these signals sit in separate systems and are rarely synthesised into a single decision at the speed operators need.
+
+The Decision Intelligence Co-Pilot is a prototype multi-agent AI system designed to validate the architecture for that kind of cross-domain intelligence before committing to production infrastructure. A natural language query is classified by intent, dispatched in parallel to the relevant specialist agents, and synthesised into a single streamed recommendation by a coordinating LLM call — end to end, in seconds.
+
+Each specialist agent owns its domain completely: its retrieval strategy, its data store, its prompt design, and its validated output schema. The orchestration layer is deliberately decoupled from agent logic — a structural choice that allows the orchestrator to be replaced or extended (for example, migrating from `ThreadPoolExecutor` to LangGraph) without modifying any agent code.
+
+Five agents are operational: Customer Voice, Pricing & Profit, Product Discovery, Inventory & Supply, and Campaign Intelligence. The architecture reflects the pattern used in serious production AI systems: domain-specialist models over monolithic ones, parallel execution over sequential, schema validation over raw text, and pre-aggregated stores over on-demand scanning.
 
 ---
 

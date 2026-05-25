@@ -1,12 +1,16 @@
 # Decision Intelligence Co-Pilot
 
-A multi-agent AI system that answers complex cross-domain retail business questions from a single natural language prompt, using the Anthropic Claude API.
+Retail operations generate high-velocity signals across at least five domains simultaneously — customer sentiment, price elasticity, inventory pressure, demand trends, and catalog coverage. In practice these signals live in separate systems and are rarely synthesised into a single decision at the speed operators need. When a question about one product spans four different data sources, the answer arrives too late or not at all.
+
+This is a working prototype of a multi-agent decision intelligence system, built to validate the architecture before committing to enterprise-scale infrastructure. A natural language question is classified by intent, dispatched in parallel to purpose-built specialist agents, and synthesised by a streaming LLM call into a single grounded recommendation — end to end, in seconds.
+
+The design deliberately mirrors how production AI systems are built at scale: specialist agents over monolithic models, parallel dispatch over sequential calls, schema-validated structured output over raw text, and pre-aggregated data stores over on-demand file scanning. The orchestration layer is kept intentionally separate from agent logic, so either side can evolve independently.
 
 ---
 
 ## What it does
 
-Type a business question in plain English. The system routes it to the right specialist agents, runs them in parallel, and synthesizes a single unified recommendation.
+Ask a business question in plain English. The system classifies intent, routes to the right agents, runs them simultaneously, and streams back a single unified recommendation.
 
 **Example queries:**
 - *"What do customers think about article 0108775015 and what should we charge for it?"*
