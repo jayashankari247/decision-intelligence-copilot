@@ -1,3 +1,4 @@
+import json
 import time
 import anthropic
 from langgraph.graph import StateGraph, START, END
@@ -11,6 +12,19 @@ from agents.product_discovery.agent import ProductDiscoveryAgent
 from agents.inventory_supply.agent import InventorySupplyAgent
 from agents.campaign_intelligence.agent import CampaignIntelligenceAgent
 
+
+AGENT_LABELS = {
+    "customer_voice":        "Customer Voice Agent",
+    "pricing_profit":        "Pricing & Profit Agent",
+    "product_discovery":     "Product Discovery Agent",
+    "inventory_supply":      "Inventory & Supply Agent",
+    "campaign_intelligence": "Campaign Intelligence Agent",
+}
+
+_SYNTHESIS_SYSTEM = (
+    "You are a senior retail business analyst synthesizing insights "
+    "from multiple data sources."
+)
 
 AGENT_NODES = [
     "customer_voice",
@@ -120,7 +134,181 @@ def campaign_intelligence_node(state: RetailState) -> dict:
 
 
 def synthesize_node(state: RetailState) -> dict:
-    return {}  # stub — wired in Step 6
+    agent_results = state["agent_results"]
+    query         = state["query"]
+
+    if len(agent_results) == 1:
+        name, result = next(iter(agent_results.items()))
+        text = _format_single(name, result)
+    elif len(agent_results) > 1:
+        text = _call_synthesize(query, agent_results)
+    else:
+        text = "No agents produced results for this query."
+
+    return {"synthesis": text}
+
+
+# ── Synthesis helpers ─────────────────────────────────────────────────────────
+
+def _format_single(agent_name: str, result: dict) -> str:
+    if not result:
+        return "Agent returned no results."
+
+    if agent_name == "customer_voice":
+        if "direct_answer" in result:
+            return (
+                f"Customer Voice — Targeted Search\n"
+                f"  Answer     : {result['direct_answer']}\n"
+                f"  Sentiment  : {result['sentiment']}\n"
+                f"  Departments: {', '.join(result.get('departments_affected', []))}\n"
+                f"  Evidence   : {result['supporting_evidence'][0] if result.get('supporting_evidence') else 'none'}\n"
+                f"  Action     : {result['recommendation']}"
+            )
+        return (
+            f"Customer Voice — Broad Summary\n"
+            f"  Reviews analyzed : {result['total_reviews']}\n"
+            f"  Avg sentiment    : {result['avg_sentiment_score']}\n"
+            f"  Top themes       : {', '.join(result['top_themes'])}\n"
+            f"  Top negatives    : {', '.join(result['top_negatives'])}\n"
+            f"  Unmet needs      : {', '.join(result['top_unmet_needs'])}\n"
+            f"  Summary          : {result['executive_summary']}"
+        )
+
+    if agent_name == "product_discovery":
+        if "direct_answer" in result:
+            return (
+                f"Product Discovery — Catalog Search\n"
+                f"  Answer     : {result['direct_answer']}\n"
+                f"  Matches    : {result.get('total_matches', '?')}\n"
+                f"  Colours    : {', '.join(result.get('colour_variety', []))}\n"
+                f"  Styles     : {', '.join(result.get('style_variety', []))}\n"
+                f"  Coverage   : {result.get('coverage_assessment', '')}\n"
+                f"  Gap        : {result.get('gap_identified', '')}"
+            )
+        return (
+            f"Product Discovery — Catalog Summary\n"
+            f"  Products sampled  : {result.get('total_products_sampled', '?')}\n"
+            f"  Categories        : {', '.join(result.get('categories_represented', []))}\n"
+            f"  Dominant colours  : {', '.join(result.get('dominant_colours', []))}\n"
+            f"  Dominant styles   : {', '.join(result.get('dominant_styles', []))}\n"
+            f"  Strengths         : {', '.join(result.get('catalog_strengths', []))}\n"
+            f"  Gaps              : {', '.join(result.get('catalog_gaps', []))}\n"
+            f"  Summary           : {result.get('executive_summary', '')}"
+        )
+
+    if agent_name == "pricing_profit":
+        return (
+            f"Pricing Analysis — {result.get('description', '')}\n"
+            f"  Elasticity    : {result['price_elasticity']}\n"
+            f"  Recommended   : {result['recommended_price']}\n"
+            f"  Rationale     : {result['recommendation_rationale']}\n"
+            f"  Confidence    : {result['confidence']}"
+        )
+
+    if agent_name == "campaign_intelligence":
+        if "promotion_recommendation" in result:
+            return (
+                f"Campaign Intelligence — Article {result.get('article_id', '')}\n"
+                f"  Recommendation  : {result['promotion_recommendation']}\n"
+                f"  Campaign type   : {result.get('campaign_type', '?')}\n"
+                f"  Suggested disc  : {result.get('suggested_discount_pct', 0)}%\n"
+                f"  Demand trend    : {result.get('demand_trend', '?')} "
+                f"({result.get('demand_change_pct', 0)}%)\n"
+                f"  Timing          : {result.get('campaign_timing', '')}\n"
+                f"  Rationale       : {result.get('rationale', '')}\n"
+                f"  Risk of inaction: {result.get('risk_of_inaction', '')}"
+            )
+        return (
+            f"Campaign Intelligence — Portfolio Summary\n"
+            f"  Candidates       : {result.get('total_candidates', '?')}\n"
+            f"  High urgency     : {result.get('high_urgency_count', '?')}\n"
+            f"  Campaign types   : {', '.join(result.get('recommended_campaign_types', []))}\n"
+            f"  Actions          : {'; '.join(result.get('immediate_actions', []))}\n"
+            f"  Summary          : {result.get('executive_summary', '')}"
+        )
+
+    if agent_name == "inventory_supply":
+        if "recommended_order_quantity" in result:
+            return (
+                f"Inventory Analysis — Article {result.get('article_id', '')}\n"
+                f"  Status           : {result['replenishment_status']}\n"
+                f"  Days to stockout : {result['days_until_stockout']}\n"
+                f"  Order quantity   : {result['recommended_order_quantity']} units\n"
+                f"  Order by         : {result['recommended_order_date']}\n"
+                f"  Rationale        : {result['rationale']}\n"
+                f"  Confidence       : {result['confidence']}"
+            )
+        return (
+            f"Inventory Health Summary\n"
+            f"  At-risk articles  : {result.get('total_at_risk', '?')}\n"
+            f"  Critical          : {result.get('critical_count', '?')}\n"
+            f"  Stockout this week: {result.get('projected_stockout_this_week', '?')}\n"
+            f"  Top priorities    : {', '.join(result.get('top_priority_articles', []))}\n"
+            f"  Actions           : {'; '.join(result.get('immediate_actions', []))}\n"
+            f"  Summary           : {result.get('executive_summary', '')}"
+        )
+
+    return str(result)
+
+
+def _call_synthesize(query: str, agent_results: dict) -> str:
+    agent_blocks = "\n\n".join([
+        f"{AGENT_LABELS.get(n, n.upper())}:\n{json.dumps(r, indent=2)}"
+        for n, r in agent_results.items()
+        if r is not None
+    ])
+    prompt = (
+        f'A user asked: "{query}"\n\n'
+        f"{len(agent_results)} specialist agents produced the following findings:\n\n"
+        f"{agent_blocks}\n\n"
+        "Write a unified 3-4 sentence business recommendation that:\n"
+        "1. Connects the findings across all agents into one coherent picture\n"
+        "2. Highlights the single most important action the business should take\n"
+        "3. Notes any tension or alignment between the different perspectives\n\n"
+        "Be direct and business-focused. No bullet points — flowing prose."
+    )
+    response = _client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=512,
+        system=[{
+            "type": "text",
+            "text": _SYNTHESIS_SYSTEM,
+            "cache_control": {"type": "ephemeral"},
+        }],
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return f"Unified Recommendation:\n\n{response.content[0].text}"
+
+
+def stream_synthesis(query: str, agent_results: dict):
+    """Yields token chunks for the UI's st.write_stream() call."""
+    agent_blocks = "\n\n".join([
+        f"{AGENT_LABELS.get(n, n.upper())}:\n{json.dumps(r, indent=2)}"
+        for n, r in agent_results.items()
+        if r is not None
+    ])
+    prompt = (
+        f'A user asked: "{query}"\n\n'
+        f"{len(agent_results)} specialist agents produced the following findings:\n\n"
+        f"{agent_blocks}\n\n"
+        "Write a unified 3-4 sentence business recommendation that:\n"
+        "1. Connects the findings across all agents into one coherent picture\n"
+        "2. Highlights the single most important action the business should take\n"
+        "3. Notes any tension or alignment between the different perspectives\n\n"
+        "Be direct and business-focused. No bullet points — flowing prose."
+    )
+    with _client.messages.stream(
+        model="claude-sonnet-4-6",
+        max_tokens=512,
+        system=[{
+            "type": "text",
+            "text": _SYNTHESIS_SYSTEM,
+            "cache_control": {"type": "ephemeral"},
+        }],
+        messages=[{"role": "user", "content": prompt}],
+    ) as s:
+        for chunk in s.text_stream:
+            yield chunk
 
 
 # ── Routing edge ──────────────────────────────────────────────────────────────
