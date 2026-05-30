@@ -31,6 +31,9 @@ sample_reviews.csv
 # ── Runtime logs ─────────────────────────────────────────────────────────────
 logs/*.jsonl
 
+# ── Archive — local reference only, not for public repo ─────────────────────
+archive/
+
 # ── Local-only project files (not for public repo) ───────────────────────────
 learning-plan.md
 linkedin_thumbnail.html
