@@ -11,13 +11,13 @@ SNAPSHOT_FILE = "data/inventory_supply/inventory_snapshot.csv"
 
 def test_trend_analyzer_loads_data():
     analyzer = DemandTrendAnalyzer(TRANSACTIONS_FILE, max_rows=5000)
-    trends = analyzer._load_trends()
+    trends = analyzer._load_trends_csv()
     assert len(trends) > 0, "Should compute trends for at least one article"
 
 
 def test_trend_values_are_valid():
     analyzer = DemandTrendAnalyzer(TRANSACTIONS_FILE, max_rows=5000)
-    trends = analyzer._load_trends()
+    trends = analyzer._load_trends_csv()
     valid_trends = {"DECLINING", "STABLE", "GROWING"}
     for article_id, data in list(trends.items())[:20]:
         assert data["trend"] in valid_trends, f"Invalid trend '{data['trend']}' for {article_id}"
@@ -25,8 +25,8 @@ def test_trend_values_are_valid():
 
 def test_trend_cache_is_reused():
     analyzer = DemandTrendAnalyzer(TRANSACTIONS_FILE, max_rows=5000)
-    trends1 = analyzer._load_trends()
-    trends2 = analyzer._load_trends()
+    trends1 = analyzer._load_trends_csv()
+    trends2 = analyzer._load_trends_csv()
     assert trends1 is trends2, "Second call should return the cached result"
 
 

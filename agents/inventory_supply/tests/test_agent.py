@@ -13,21 +13,21 @@ TRANSACTIONS_FILE = "data/product_discovery/transactions_train.csv"
 
 def test_forecaster_loads_demand():
     forecaster = DemandForecaster(TRANSACTIONS_FILE, max_rows=5000)
-    demand = forecaster._load_demand()
+    demand = forecaster._load_demand_csv()
     assert len(demand) > 0, "Should load demand data from transactions"
 
 
 def test_forecaster_daily_rate_is_positive():
     forecaster = DemandForecaster(TRANSACTIONS_FILE, max_rows=5000)
-    demand = forecaster._load_demand()
+    demand = forecaster._load_demand_csv()
     for article_id, metrics in list(demand.items())[:10]:
         assert metrics["daily_demand_rate"] > 0, f"Daily rate should be positive for {article_id}"
 
 
 def test_forecaster_cache_is_reused():
     forecaster = DemandForecaster(TRANSACTIONS_FILE, max_rows=5000)
-    demand1 = forecaster._load_demand()
-    demand2 = forecaster._load_demand()
+    demand1 = forecaster._load_demand_csv()
+    demand2 = forecaster._load_demand_csv()
     assert demand1 is demand2, "Second call should return cached result"
 
 
