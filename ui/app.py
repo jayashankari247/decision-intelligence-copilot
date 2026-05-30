@@ -704,20 +704,6 @@ with st.sidebar:
                 st.session_state.current = entry
                 st.rerun()
 
-    st.divider()
-    with st.expander("Query logs", expanded=False):
-        from shared.logger import AgentLogger
-        logs = AgentLogger().read_recent(n=10)
-        if not logs:
-            st.caption("No logs yet.")
-        else:
-            for entry in logs:
-                ts      = entry.get("timestamp", "")[:19].replace("T", " ")
-                agents  = ", ".join(entry.get("agents_called", []))
-                latency = entry.get("total_latency_sec", "?")
-                ok      = "✓" if entry.get("success") else "✗"
-                st.caption(f"{ok} {ts}  |  {latency}s  |  {agents}")
-                st.caption(f"  ↳ {entry.get('query', '')[:60]}")
 
 
 # ── Main: top banner ─────────────────────────────────────────────────────────

@@ -11,7 +11,6 @@ from agents.pricing_profit.agent import PricingProfitAgent
 from agents.product_discovery.agent import ProductDiscoveryAgent
 from agents.inventory_supply.agent import InventorySupplyAgent
 from agents.campaign_intelligence.agent import CampaignIntelligenceAgent
-from shared.logger import AgentLogger
 
 
 AGENT_LABELS = {
@@ -45,7 +44,6 @@ _agents = {
     "inventory_supply":      InventorySupplyAgent(),
     "campaign_intelligence": CampaignIntelligenceAgent(),
 }
-_logger = AgentLogger()
 
 
 # ── Node functions ────────────────────────────────────────────────────────────
@@ -146,15 +144,6 @@ def synthesize_node(state: RetailState) -> dict:
         text = _call_synthesize(query, agent_results)
     else:
         text = "No agents produced results for this query."
-
-    timings = state.get("agent_timings", {})
-    _logger.log(
-        query=query,
-        intent=state.get("intent", {}),
-        agent_timings=timings,
-        total_latency=sum(timings.values()),
-        success=bool(agent_results),
-    )
 
     return {"synthesis": text}
 

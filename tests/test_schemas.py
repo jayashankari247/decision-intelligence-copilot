@@ -148,17 +148,3 @@ def test_multi_agent_pipeline(retail_graph, article_id):
     assert ar.get("customer_voice") is not None, "customer_voice agent returned None"
     assert ar.get("pricing_profit") is not None, "pricing_profit agent returned None"
     assert len(state["synthesis"]) > 20
-
-
-@pytest.mark.integration
-def test_logger_writes_entry(retail_graph, tmp_path, monkeypatch):
-    """After graph.invoke(), a log entry should exist in the log file."""
-    import orchestrator.langgraph_orchestrator as orch_module
-    from shared.logger import AgentLogger
-    log_path = tmp_path / "logs"
-    monkeypatch.setattr(orch_module, "_logger", AgentLogger(log_dir=str(log_path)))
-    retail_graph.invoke({"query": "What is the optimal price for article 0108775015?"})
-    entries = AgentLogger(log_dir=str(log_path)).read_recent(n=1)
-    assert len(entries) == 1
-    assert entries[0]["success"] is True
-    assert "pricing_profit" in entries[0]["agents_called"]
