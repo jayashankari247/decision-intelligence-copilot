@@ -1,7 +1,9 @@
+import anthropic
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Send
 
 from orchestrator.retail_state import RetailState
+from orchestrator.intent_classifier import IntentClassifier
 
 
 AGENT_NODES = [
@@ -12,13 +14,16 @@ AGENT_NODES = [
     "campaign_intelligence",
 ]
 
+# Instantiated once at module load — reused across all graph invocations
+_client     = anthropic.Anthropic()
+_classifier = IntentClassifier(_client)
 
-# ── Stub node functions ───────────────────────────────────────────────────────
-# Each returns an empty dict (valid no-op state update).
-# Replaced with real logic in Steps 4, 5, and 6.
+
+# ── Node functions ────────────────────────────────────────────────────────────
 
 def classify_intent_node(state: RetailState) -> dict:
-    return {}
+    intent = _classifier.classify(state["query"])
+    return {"intent": intent}
 
 def customer_voice_node(state: RetailState) -> dict:
     return {}
