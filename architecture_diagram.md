@@ -117,7 +117,7 @@ flowchart TD
 | Observability | `print()` + JSONL log file | LangSmith visual trace |
 | Agent code | ✅ Unchanged | ✅ Unchanged |
 | Prompts | ✅ Unchanged | ✅ Unchanged |
-| Tests | 26 passing | 26 passing |
+| Tests | 26 passing | 25 passing |
 
 ## What stayed the same
 

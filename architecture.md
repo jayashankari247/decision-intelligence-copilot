@@ -229,33 +229,16 @@ Pydantic v2 models for every agent output type. A shared `_Base` class applies a
 Nine schema classes cover all agent modes:
 `CustomerVoiceSearchOutput`, `CustomerVoiceSummaryOutput`, `PricingOutput`, `ProductDiscoverySearchOutput`, `ProductDiscoverySummaryOutput`, `InventoryArticleOutput`, `InventorySummaryOutput`, `CampaignArticleOutput`, `CampaignSummaryOutput`
 
-### 6.2 Structured Logging (`shared/logger.py`)
-
-`AgentLogger` appends a JSON entry to `logs/agent_calls.jsonl` on every orchestrator run:
-
-```json
-{
-  "timestamp": "ISO8601",
-  "query": "string",
-  "agents_called": ["string"],
-  "agent_timings": { "agent_name": 8.3 },
-  "total_latency_sec": 12.1,
-  "success": true
-}
-```
-
-The last 10 log entries are surfaced in the Streamlit sidebar for real-time observability without leaving the UI.
-
 ---
 
 ## 7. Test Suite
 
-26 tests across two files, separated by cost:
+25 tests across two files, separated by cost:
 
 | File | Tests | Requires API | Scope |
 |---|---|---|---|
 | `tests/test_routing.py` | 14 | No | Intent classification accuracy across all 11 known query patterns |
-| `tests/test_schemas.py` | 12 | Yes | Per-agent output schema validation + end-to-end orchestrator runs |
+| `tests/test_schemas.py` | 11 | Yes | Per-agent output schema validation + end-to-end LangGraph graph runs |
 
 Routing tests use `@pytest.mark.parametrize` across all query types — single agent, multi-agent, summary, article-specific, and unknown query fallback. Integration tests are marked `@pytest.mark.integration` and can be excluded to keep CI fast.
 
@@ -270,7 +253,6 @@ Streamlit application with a retail operations dashboard design — light sideba
 - Multi-agent queries stream the synthesis live via `st.write_stream()`; single-agent results render immediately
 - Each agent's structured output is rendered into its own insight card with metrics, charts (Plotly), and evidence lists
 - Per-agent timing is displayed alongside the agent tags on each result
-- Last 10 query logs visible in the sidebar expander without leaving the app
 
 ---
 
@@ -298,7 +280,6 @@ Streamlit application with a retail operations dashboard design — light sideba
 | Vector search | ChromaDB + sentence-transformers (`all-MiniLM-L6-v2`) |
 | Structured data | SQLite via Python `sqlite3` |
 | Output validation | Pydantic v2 |
-| Structured logging | Append-only JSONL (`shared/logger.py`) |
 | Testing | pytest with `integration` marker for API-call tests |
 | Orchestration | LangGraph `StateGraph` + LangSmith observability |
 

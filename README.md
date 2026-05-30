@@ -125,17 +125,17 @@ The ChromaDB vector indexes (reviews + products) are built automatically on firs
 │   ├── inventory_supply/       # Stockout forecasting + replenishment
 │   └── campaign_intelligence/  # Promotion + discount recommendations
 ├── orchestrator/
-│   ├── orchestrator.py         # Parallel dispatch + streaming synthesis
-│   └── intent_classifier.py   # Claude API → routing JSON
+│   ├── langgraph_orchestrator.py  # StateGraph, nodes, routing, synthesis
+│   ├── retail_state.py            # RetailState TypedDict + merge reducers
+│   └── intent_classifier.py      # Claude API → routing JSON
 ├── shared/
-│   ├── schemas.py              # Pydantic output models (all 5 agents)
-│   └── logger.py              # JSON structured logging → logs/
+│   └── schemas.py              # Pydantic output models (all 5 agents)
 ├── ui/
 │   └── app.py                 # Streamlit UI — retail operations dashboard
 ├── tests/
 │   ├── test_routing.py        # 14 routing tests (no API calls)
-│   └── test_schemas.py        # 12 integration tests (real API calls)
-├── archive/v1_sdk/            # Archived v1 orchestrator before LangGraph migration
+│   └── test_schemas.py        # 11 integration tests (real API calls)
+├── archive/sdk_baseline/      # Pre-LangGraph SDK snapshots (local reference only)
 ├── build_sqlite_db.py         # One-time SQLite pre-aggregation script
 ├── generate_inventory_snapshot.py
 ├── architecture_diagram.md    # Mermaid diagrams: current + LangGraph target
