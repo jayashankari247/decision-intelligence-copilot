@@ -2,11 +2,11 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import time
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from orchestrator.orchestrator import Orchestrator
 
 # ── Page config ─────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -280,10 +280,11 @@ STATUS_COLORS = {
 }
 
 
-# ── Orchestrator (loaded once, cached across reruns) ─────────────────────────
+# ── Graph (loaded once, cached across reruns) ─────────────────────────────────
 @st.cache_resource(show_spinner="Loading agents and data sources...")
-def load_orchestrator():
-    return Orchestrator()
+def load_graph():
+    from orchestrator.langgraph_orchestrator import retail_graph, stream_synthesis
+    return retail_graph, stream_synthesis
 
 
 # ── Session state ────────────────────────────────────────────────────────────
@@ -733,7 +734,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Main: run query ───────────────────────────────────────────────────────────
-orchestrator = load_orchestrator()
+retail_graph, stream_synthesis = load_graph()
 
 query_to_run = ""
 if run_clicked and query_input.strip():
@@ -744,7 +745,22 @@ elif st.session_state.auto_query and not run_clicked:
 
 if query_to_run:
     with st.spinner(f"Running agents for: *{query_to_run}*"):
-        result = orchestrator.run(query_to_run, stream_synthesis=True)
+        t0    = time.time()
+        state = retail_graph.invoke({
+            "query":         query_to_run,
+            "intent":        {},
+            "agent_results": {},
+            "agent_timings": {},
+            "synthesis":     None,
+        })
+        result = {
+            "query":             query_to_run,
+            "intent":            state["intent"],
+            "agent_results":     state["agent_results"],
+            "agent_timings":     state["agent_timings"],
+            "total_latency_sec": round(time.time() - t0, 2),
+            "formatted":         state.get("synthesis", ""),
+        }
     st.session_state.history.append(result)
     st.session_state.current = result
     st.rerun()
@@ -859,7 +875,7 @@ else:
     with st.container(border=True):
         if is_multi_agent and not formatted:
             streamed_text = st.write_stream(
-                orchestrator.stream_synthesis(current["query"], active_results_check)
+                stream_synthesis(current["query"], active_results_check)
             )
             current["formatted"] = streamed_text
         else:
