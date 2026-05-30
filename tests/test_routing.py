@@ -31,8 +31,8 @@ ROUTING_CASES = [
 
 
 @pytest.mark.parametrize("query,expected", ROUTING_CASES)
-def test_routing(orchestrator, query, expected):
-    intent = orchestrator.classifier.classify(query)
+def test_routing(classifier, query, expected):
+    intent = classifier.classify(query)
     routed = intent.get("agents", [])
     for agent in expected:
         assert agent in routed, (
@@ -40,20 +40,20 @@ def test_routing(orchestrator, query, expected):
         )
 
 
-def test_intent_has_reasoning(orchestrator):
-    intent = orchestrator.classifier.classify("What are customers saying overall?")
+def test_intent_has_reasoning(classifier):
+    intent = classifier.classify("What are customers saying overall?")
     assert intent.get("reasoning"), "Intent classifier should always return reasoning"
 
 
-def test_intent_agents_is_list(orchestrator):
-    intent = orchestrator.classifier.classify("What is the replenishment status for 0108775015?")
+def test_intent_agents_is_list(classifier):
+    intent = classifier.classify("What is the replenishment status for 0108775015?")
     assert isinstance(intent.get("agents"), list)
     assert len(intent["agents"]) >= 1
 
 
-def test_unknown_query_returns_fallback(orchestrator):
+def test_unknown_query_returns_fallback(classifier):
     """A completely unrelated query should route to at least one agent, not crash."""
-    intent = orchestrator.classifier.classify(
+    intent = classifier.classify(
         "What is the weather like in London today?"
     )
     assert isinstance(intent.get("agents"), list)

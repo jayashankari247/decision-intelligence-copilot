@@ -6,7 +6,9 @@ Integration tests — real API calls, marked @pytest.mark.integration,
                     run with: pytest -m integration
 """
 import pytest
-from orchestrator.orchestrator import Orchestrator
+from dotenv import load_dotenv
+load_dotenv()
+
 
 ARTICLE_ID = "0108775015"
 
@@ -19,9 +21,24 @@ def pytest_configure(config):
 
 
 @pytest.fixture(scope="session")
-def orchestrator():
-    """Single orchestrator instance shared across the entire test session."""
-    return Orchestrator()
+def retail_graph():
+    """Compiled LangGraph instance shared across the entire test session."""
+    from orchestrator.langgraph_orchestrator import retail_graph as graph
+    return graph
+
+
+@pytest.fixture(scope="session")
+def agents():
+    """The five specialist agent instances, shared across the test session."""
+    from orchestrator.langgraph_orchestrator import _agents
+    return _agents
+
+
+@pytest.fixture(scope="session")
+def classifier():
+    """The intent classifier instance, shared across the test session."""
+    from orchestrator.langgraph_orchestrator import _classifier
+    return _classifier
 
 
 @pytest.fixture(scope="session")
