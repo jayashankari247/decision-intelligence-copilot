@@ -71,9 +71,19 @@ A single Claude API call converts the user's natural language query into a struc
 
 The classifier returns the minimal agent set required — single-agent queries invoke one agent, compound queries fan out to multiple. Prompt caching is applied to the classifier system prompt.
 
-### 3.2 Parallel Dispatcher (`orchestrator/orchestrator.py`)
+### 3.2 Parallel Dispatcher (`orchestrator/langgraph_orchestrator.py`)
 
-For multi-agent queries, agents run concurrently via `ThreadPoolExecutor`. Each agent executes in its own thread; results are collected as futures complete. Per-agent wall-clock timing is recorded for observability.
+For multi-agent queries, agents run concurrently via the LangGraph `Send` API. After the classifier node writes the routing decision to `RetailState`, the `route_to_agents` conditional edge function returns one `Send` object per agent; LangGraph fans them out in parallel. Results accumulate into `RetailState` via merge reducers — each agent writes its output as it completes and the reducer merges concurrent writes safely. Per-agent wall-clock timing is recorded for observability.
+
+A `RetailState` TypedDict flows through the graph, accumulating data at each node:
+
+| Field | Written by | Read by |
+|---|---|---|
+| `query` | UI (initial input) | Classifier node, Synthesizer node |
+| `intent` | Classifier node | Router edge, Agent nodes |
+| `agent_results` | Each agent node (merge reducer) | Synthesizer node |
+| `agent_timings` | Each agent node (merge reducer) | UI |
+| `synthesis` | Synthesizer node | UI |
 
 ### 3.3 Streaming Synthesizer
 
@@ -256,7 +266,7 @@ Routing tests use `@pytest.mark.parametrize` across all query types — single a
 Streamlit application with a retail operations dashboard design — light sidebar, navy/orange header, card-based agent insight panels.
 
 **Key UI behaviours:**
-- `@st.cache_resource` loads the orchestrator once; all subsequent queries reuse the cached instance with warm ChromaDB indexes
+- `@st.cache_resource` loads the compiled LangGraph graph once; all subsequent queries reuse the cached graph instance with warm ChromaDB indexes
 - Multi-agent queries stream the synthesis live via `st.write_stream()`; single-agent results render immediately
 - Each agent's structured output is rendered into its own insight card with metrics, charts (Plotly), and evidence lists
 - Per-agent timing is displayed alongside the agent tags on each result
@@ -268,13 +278,14 @@ Streamlit application with a retail operations dashboard design — light sideba
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Parallel dispatch | `ThreadPoolExecutor` | Multi-agent queries run all agents simultaneously; a 3-agent query takes the time of the slowest agent, not the sum |
+| Parallel dispatch | LangGraph `Send` API | `route_to_agents` returns one `Send` per agent; LangGraph fans them out simultaneously — a 3-agent query takes the time of the slowest, not the sum |
+| State accumulation | `RetailState` merge reducers | Concurrent agent writes to `agent_results` are merged safely without overwriting; no manual future collection needed |
 | Streaming synthesis | `client.messages.stream()` | Users see the recommendation building in real time rather than waiting for full completion |
 | Prompt caching | `cache_control: ephemeral` on all system prompts | Repeated queries reuse cached prompt prefixes, reducing latency and API cost |
 | SQLite pre-aggregation | One-time build via `build_sqlite_db.py` | Price and demand queries hit indexed tables in milliseconds rather than scanning 500MB+ CSVs |
 | Pydantic validation | Per-agent schema on every response | Catches malformed outputs and normalises enum casing before the synthesizer or UI consume the data |
-| Orchestration style | Centralised orchestrator, no framework | Explicit routing and state passing; the LangGraph migration (next) will replace this layer without touching any agent code |
-| Archive pattern | `archive/v1_sdk/` preserves the pre-migration orchestrator | Direct comparison between raw-SDK and LangGraph designs; agent code is identical in both |
+| Orchestration style | LangGraph `StateGraph` | Routing logic declared as graph edges rather than imperative `if/elif` code; nodes are decoupled and independently replaceable |
+| Agent isolation | All 5 `agents/*/agent.py` untouched by migration | Orchestration layer swapped from `ThreadPoolExecutor` to LangGraph without modifying any agent business logic |
 
 ---
 
@@ -289,5 +300,5 @@ Streamlit application with a retail operations dashboard design — light sideba
 | Output validation | Pydantic v2 |
 | Structured logging | Append-only JSONL (`shared/logger.py`) |
 | Testing | pytest with `integration` marker for API-call tests |
-| Orchestration (next) | LangGraph |
+| Orchestration | LangGraph `StateGraph` + LangSmith observability |
 

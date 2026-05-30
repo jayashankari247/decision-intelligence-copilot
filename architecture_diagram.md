@@ -5,7 +5,7 @@ or view directly on GitHub (Mermaid renders natively in GitHub markdown).
 
 ---
 
-## Current Architecture — Raw Anthropic SDK
+## Reference Architecture — Raw Anthropic SDK (pre-migration)
 
 ```mermaid
 flowchart TD
@@ -61,7 +61,7 @@ flowchart TD
 
 ---
 
-## LangGraph Target Architecture
+## Current Architecture — LangGraph
 
 ```mermaid
 flowchart TD
@@ -107,21 +107,21 @@ flowchart TD
 
 ---
 
-## What changes in the LangGraph migration
+## What changed in the migration
 
-| Concept | Current (Raw SDK) | Target (LangGraph) |
+| Concept | Raw SDK (reference) | LangGraph (current) |
 |---|---|---|
 | Routing logic | `if/elif` in `orchestrator.py` | Conditional edges on the graph |
 | Parallel dispatch | `ThreadPoolExecutor` | LangGraph `Send` API (fan-out) |
-| State passing | Plain `dict` returned from `run()` | Typed `RetailState` TypedDict |
+| State passing | Plain `dict` returned from `run()` | Typed `RetailState` TypedDict with merge reducers |
 | Observability | `print()` + JSONL log file | LangSmith visual trace |
 | Agent code | ✅ Unchanged | ✅ Unchanged |
 | Prompts | ✅ Unchanged | ✅ Unchanged |
-| Tests | ✅ Still pass | ✅ Still pass |
+| Tests | 26 passing | 26 passing |
 
-## What stays the same
+## What stayed the same
 
 All 5 `agents/*/agent.py` files — the actual business logic, data access,
-and Claude API calls — are not touched. LangGraph wraps the orchestration
-layer only. The agents become nodes; their existing methods are called
+and Claude API calls — were not touched. LangGraph wraps the orchestration
+layer only. The agents became nodes; their existing methods are called
 from within those nodes.

@@ -162,12 +162,14 @@ pytest -v
 
 ## Key design decisions
 
-- **Parallel agent dispatch** via `ThreadPoolExecutor` — multi-agent queries run all agents simultaneously
+- **Parallel agent dispatch** via LangGraph `Send` API — `route_to_agents` fans out to all required agents simultaneously; a 3-agent query takes the time of the slowest, not the sum
+- **Merge reducers on shared state** — concurrent agent writes accumulate safely into `RetailState` without overwriting each other
 - **Streaming synthesis** via `client.messages.stream()` — recommendation streams token by token to the UI
 - **Prompt caching** on all system prompts — reduces latency and API cost on repeated queries
 - **Pydantic validation** on all agent outputs — normalises case inconsistencies from Claude
 - **SQLite pre-aggregation** — price and demand queries hit indexed tables, not raw CSV scans
 - **ChromaDB PersistentClient** — vector indexes survive restarts; only built once
+- **Agent isolation** — all 5 agent files untouched by the orchestration migration; business logic is fully decoupled from coordination logic
 
 ---
 
@@ -181,4 +183,4 @@ pytest -v
 | Structured data | SQLite via Python sqlite3 |
 | Output validation | Pydantic v2 |
 | Testing | pytest |
-| Orchestration (next) | LangGraph |
+| Orchestration | LangGraph `StateGraph` + LangSmith |
