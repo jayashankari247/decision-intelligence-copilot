@@ -1,5 +1,9 @@
 # Decision Intelligence Co-Pilot — Architecture & Design
 
+> **Disclaimer:** This document describes an independent personal project
+> built on personal time using publicly available datasets. It does not
+> reflect the technology, architecture, or strategy of any employer.
+
 ---
 
 ## 1. Overview
