@@ -8,6 +8,10 @@ The design deliberately mirrors how production AI systems are built at scale: sp
 
 ---
 
+> **Disclaimer:** This is an independent personal project built entirely on personal time and systems using publicly available datasets. It does not reflect the technology, architecture, or strategy of any current or former employer.
+
+---
+
 ## What it does
 
 Ask a business question in plain English. The system classifies intent, routes to the right agents, runs them simultaneously, and streams back a single unified recommendation.
