@@ -12,6 +12,19 @@ The design deliberately mirrors how production AI systems are built at scale: sp
 
 ---
 
+## Why I Built This
+
+I built this prototype to pressure-test multi-agent AI system design —
+specifically to understand what it takes to build these systems well at
+the architecture and orchestration level before applying the patterns at
+production scale. The goal was not to ship a product but to develop the
+system-level thinking that makes you a better architect of what AI can do.
+
+Built in phases: raw Anthropic SDK first to understand the fundamentals,
+then migrated to LangGraph to understand production-grade orchestration.
+
+---
+
 ## What it does
 
 Ask a business question in plain English. The system classifies intent, routes to the right agents, runs them simultaneously, and streams back a single unified recommendation.
@@ -86,7 +99,7 @@ cp .env.example .env
 
 ### 5. Obtain the dataset
 
-This project uses the [H&M Personalization Challenge](https://www.kaggle.com/competitions/h-and-m-personalized-fashion-recommendations/data) dataset from Kaggle.
+This project uses the publicly available [H&M Personalization Challenge](https://www.kaggle.com/competitions/h-and-m-personalized-fashion-recommendations/data) dataset from Kaggle — chosen for its realistic retail transaction structure across articles, customers, and purchases, with no proprietary data concerns.
 
 Download and place files at the paths listed in `.env.example`:
 
@@ -138,7 +151,7 @@ The ChromaDB vector indexes (reviews + products) are built automatically on firs
 │   └── app.py                 # Streamlit UI — retail operations dashboard
 ├── tests/
 │   ├── test_routing.py        # 14 routing tests (no API calls)
-│   └── test_schemas.py        # 11 integration tests (real API calls)
+│   └── test_schemas.py        # 11 integration tests (real API calls, ~3-4 min)
 ├── archive/sdk_baseline/      # Pre-LangGraph SDK snapshots (local reference only)
 ├── build_sqlite_db.py         # One-time SQLite pre-aggregation script
 ├── generate_inventory_snapshot.py
