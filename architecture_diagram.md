@@ -1,5 +1,8 @@
 # Architecture Diagrams
 
+> **Note:** This architecture documents an independent personal project.
+> It does not reflect the technology or architecture of any employer.
+
 Render these in VS Code with the **Markdown Preview Mermaid Support** extension,
 or view directly on GitHub (Mermaid renders natively in GitHub markdown).
 
