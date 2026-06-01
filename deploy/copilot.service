@@ -1,0 +1,15 @@
+[Unit]
+Description=Decision Intelligence Co-Pilot (Streamlit)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/decision-intelligence-copilot
+EnvironmentFile=/home/ubuntu/decision-intelligence-copilot/.env
+ExecStart=/home/ubuntu/decision-intelligence-copilot/venv/bin/streamlit run ui/app.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
